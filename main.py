@@ -1,5 +1,5 @@
 # implementation of BK Precision 8601B Control
-
+import datetime
 import sys
 import signal
 import time
@@ -14,27 +14,40 @@ from instrument_control import BK_Precision_8601B  # the load I am using
 
 def interrupt_handler(signum, frame):
     print(f'Handling signal {signum} ({signal.Signals(signum).name}).')
-    print("Saving data")
-    #   Turn off the load code
-    #   Save the current data code
+
+    save_data()  # turn off the load and save what data you have
     print("Done")
     sys.exit(0)  # terminate the program
 
 
-def main():
-    print("Starting program")
-    print("Press Ctr1+F2 (Windows) or Ctrl+C (Linux) to terminate the program ")
+def save_data():
+    print("Saving data")
 
+
+def run_load():
     resource_manager = pyvisa.ResourceManager()  # object managing all possible test equipment attached
-    print(resource_manager.list_resources())  # shows connections to equipment
-    resource_location = input("Copy and paste the resource to use (not including single quotes): ")  # shows digital 'location' (USB, RS-32, etc)
+    storage_file_name = 'stored_data_' + formatted_datetime
 
-    file_name = input("Input a file name and location for your data to be stored")
-    equipment = BK_Precision_8601B(file_name)
-    file = open(file_name, "x")
+    electronic_load = BK_Precision_8601B(storage_file_name, resource_manager)   # create the electronic load object
+    electronic_load.setup()  # let the user decide what they want the load to do during this run
+    if electronic_load.run_type == "MANUAL":
+        electronic_load.run_manual()
+    elif electronic_load.run_type == "FILE":
+        electronic_load.run_file_mode()
+    else:
+        print("Something went wrong")
 
 
-    time.sleep(60)
+def main():
+    # Get the current date and time
+    current_datetime = datetime.datetime.now()
+    # Format the date and time as a string
+    global formatted_datetime
+    formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H:%M:%S")
+
+    print("Press Ctr1+F2 (Windows) or Ctrl+C (Linux) to terminate the program ")
+    run_load()   # figure out what you
+    time.sleep(10)
 
 
 if __name__ == '__main__':
