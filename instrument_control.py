@@ -4,6 +4,8 @@
 import pyvisa
 import time
 import pandas as pd
+import csv
+
 from abc import ABC, abstractmethod
 
 
@@ -84,9 +86,52 @@ class BK_Precision_8601B(ElectronicTestEquipment):
     def run_manual(self):
         print("Running manually")
         self.user_choose_mode()  # user decides if CC, CV, CW, or CR should be used
+        time_interval = self.set_interval()
+        measurement_range = self.set_range()  # how many total intervals to measure from
+        total_seconds = time_interval * measurement_range
+        total_minutes = float(total_seconds / 60)
+        print("This experiment will run for " + total_minutes + " minutes")
+        load_level = input("Enter the input magnitude you would like")  # user specifies the current, voltage, power, or resistance level they would like
+
+        input("Press enter to start measuring (this will turn on the load, so be careful)")
+        self.resource_object.write("Input ON")  # turn the electronic load on. we are now live
+        voltage = 0
+        current = 0
+        data = []
+        for index in range(measurement_range):  # measure current and voltage, and upload these to a CSV file
+            voltage = self.resource_object.query(":FETCH:VOLTAGE?")
+            current = self.resource_object.query(":FETCH:CURRENT?")
+            power = voltage * current
+            data.append(voltage, current, power)
+            time.sleep(time_interval)
+        # format and store the collected data
+        data_frame = pd.DataFrame(data, columns=['Voltage', 'Current', 'Power'])
+        data_frame.to_csv(self.data_storage_location)
 
 
+    @staticmethod
+    def set_range(self) -> int:
+        while True:
+            print(
+                "How many measurements do you want to take?")
+            try:
+                range = int(input("Enter an integer: "))
+                break
+            except ValueError:
+                print("Enter just the integer")
+        return range
 
+
+    @staticmethod
+    def set_interval(self) -> int:
+        while True:
+            print("What do you want your interval between measurements to be? Voltage and current measurements will be given")
+            try:
+                interval = int(input("Enter an integer: "))
+                break
+            except ValueError:
+                print("Enter just the integer")
+        return interval
 
 
     def user_choose_mode(self):
@@ -108,6 +153,8 @@ class BK_Precision_8601B(ElectronicTestEquipment):
                 continuing = False
             else:
                 print("Invalid choice")
+
+
 
 
     def run_file_mode(self):

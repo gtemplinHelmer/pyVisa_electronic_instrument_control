@@ -26,7 +26,7 @@ def save_data():
 
 def run_load():
     resource_manager = pyvisa.ResourceManager()  # object managing all possible test equipment attached
-    storage_file_name = 'stored_data_' + formatted_datetime
+    storage_file_name = 'stored_data_' + formatted_datetime + '.csv'  # the csv file that data will be written to on this test
 
     electronic_load = BK_Precision_8601B(storage_file_name, resource_manager)   # create the electronic load object
     electronic_load.setup()  # let the user decide what they want the load to do during this run
