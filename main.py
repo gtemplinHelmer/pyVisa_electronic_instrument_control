@@ -11,14 +11,14 @@ import csv  # to create CSV file to store data in
 from instrument_control import BK_Precision_8601B  # the load I am using
 
 
-
+'''
 def interrupt_handler(signum, frame):
     print(f'Handling signal {signum} ({signal.Signals(signum).name}).')
 
     save_data()  # turn off the load and save what data you have
     print("Done")
     sys.exit(0)  # terminate the program
-
+'''
 
 def save_data():
     print("Saving data")
@@ -51,5 +51,5 @@ def main():
 
 
 if __name__ == '__main__':
-    signal.signal(signal.SIGINT, interrupt_handler)
+    # signal.signal(signal.SIGINT, interrupt_handler)
     main()
