@@ -4,7 +4,7 @@
 import pyvisa
 import time
 import pandas as pd
-import keyboard
+
 
 
 from abc import ABC, abstractmethod
@@ -38,14 +38,12 @@ class BK_Precision_8601B(ElectronicTestEquipment):
     # Needs a resource manager object from pyVisa
     # Needs a load output address to talk to via usb or some other output configuration
 
-    def __init__(self, storage_file, resource_manager):
-        self.data_storage_location = storage_file   # likely a CSV file
+    def __init__(self, storage_file_location, resource_manager):
+        self.data_storage_location = storage_file_location   # likely a CSV file
         self.resource_manager = resource_manager    # pyVisa object
         self.run_type = "Undefined"   # describes what type of testing is done (manual control, read from file, etc)
         self.resource_digital_location = "No resource yet"
         self.resource_object = None  # nonexistent until user inputs
-
-
 
 
     # find the digital location of the load
@@ -90,38 +88,59 @@ class BK_Precision_8601B(ElectronicTestEquipment):
     def run_manual(self):
         # set up variables
         print("Running manually")
-        self.user_choose_mode()  # user decides if CC, CV, CW, or CR should be used
+        mode = self.user_choose_mode()  # user decides if CC, CV, CW, or CR should be used
         time_interval = self.set_interval()
-        measurement_range = self.set_range()  # how many total intervals to measure from
-        total_seconds = time_interval * measurement_range
-        total_minutes = float(total_seconds / 60)
-        print("This experiment will run for " + total_minutes + " minutes")
-        load_level = input("Enter the input magnitude you would like")  # user specifies the current, voltage, power, or resistance level they would like
-
+        measurement_range = self.set_range()
+        magnitude = input("Enter the input magnitude: ")
+        self.resource_object.write(mode + " " + magnitude)  # if CR, this sets the resistance. similar for others
         # set up all data storage and user input features
-        voltage = 0
-        current = 0
         data = []
+        data_at_index = []
         input("Press enter to start measuring (this will turn on the load, so be careful)")
         self.resource_object.write("Input ON")  # turn the electronic load on. we are now live
-        print("Press and hold 'Ctrl+F2' for a few seconds to terminate the data storage")
-        for index in range(measurement_range):  # measure current and voltage, and upload these to a CSV file
-            voltage = self.resource_object.query(":FETCH:VOLTAGE?")
-            current = self.resource_object.query(":FETCH:CURRENT?")
-            power = voltage * current
-            data.append(voltage, current, power)
-            if keyboard.is_pressed('Ctrl+F2'):
-                print("Data collection terminated. Data will be stored in " + self.data_storage_location)  # tell user where their stored data will be
-                break
-            time.sleep(time_interval)
+        print("Press and hold 'Ctrl+F2' to terminate the data storage")
 
+        while True:
+            try:
+                for index in range(measurement_range):  # measure current and voltage, and upload these to a CSV file
+                    voltage = float(self.resource_object.query(":FETCH:VOLTAGE?"))
+                    current = float(self.resource_object.query(":FETCH:CURRENT?"))
+                    power = voltage * current
+                    data_at_index.append(index)
+                    data_at_index.append(voltage)
+                    data_at_index.append(current)
+                    data_at_index.append(power)
+                    data.append(data_at_index)
+                    data_at_index = []
+
+                    print(data[index])
+                    time.sleep(time_interval)
+            except KeyboardInterrupt:
+                self.save_data(data)
+                break
+            else:
+                self.save_data(data)
+                break
+
+        print("Data should be saved")
+
+
+    def save_data(self, stored_values):
+        self.resource_object.write("Input OFF")  # terminate the input
         # format and store the collected data
-        data_frame = pd.DataFrame(data, columns=['Voltage', 'Current', 'Power'])
-        data_frame.to_csv(self.data_storage_location)
+        column_names = ['Sample Number', 'Voltage', 'Current', 'Power']
+        data_frame = pd.DataFrame(stored_values)
+        data_frame.columns = column_names
+
+        # see if the file path is currently valid, and if not, find a new path
+        try:
+            data_frame.to_csv(self.data_storage_location, index=False)
+        except FileNotFoundError:
+            print("Invalid file path")
 
 
     @staticmethod
-    def set_range(self) -> int:
+    def set_range() -> int:
         while True:
             print(
                 "How many measurements do you want to take?")
@@ -134,7 +153,7 @@ class BK_Precision_8601B(ElectronicTestEquipment):
 
 
     @staticmethod
-    def set_interval(self) -> int:
+    def set_interval() -> int:
         while True:
             print("What do you want your interval between measurements to be? Voltage and current measurements will be given")
             try:
@@ -153,24 +172,23 @@ class BK_Precision_8601B(ElectronicTestEquipment):
             if str.upper(load_mode) == "CC":
                 self.resource_object.write("FUNC CURR")
                 continuing = False
-                return "FUNC CURR"
+                return "CURR"
             elif str.upper(load_mode) == "CV":
                 self.resource_object.write("FUNC VOLT")
                 continuing = False
-                return "FUNC VOLT"
+                return "VOLT"
             elif str.upper(load_mode) == "CW":
-                self.resource_object.write("FUNC POW")
+                self.resource_object.write("POW")
                 continuing = False
-                return "FUNC POW"
+                return "POW"
             elif str.upper(load_mode) == "CR":
                 self.resource_object.write("FUNC RES")
                 continuing = False
-                return "FUNC RES"
+                return "RES"
             else:
                 print("Invalid choice")
 
         return "Nothing returned, error likely"
-
 
 
     def run_file_mode(self):
@@ -178,39 +196,37 @@ class BK_Precision_8601B(ElectronicTestEquipment):
         file_to_read_from = input("Enter the file you would like to read from: ")
         load_function = self.user_choose_mode()  # user decides if CC, CV, CW, or CR should be used
         time_interval = self.set_interval()
-        measurement_range = self.set_range()  # how many total intervals to measure from
-        total_seconds = time_interval * measurement_range
-        total_minutes = float(total_seconds / 60)
-        print("This experiment will run for " + total_minutes + " minutes")
-        load_level = input("Enter the input magnitude you would like")  # user specifies the current, voltage, power, or resistance level they would like
-
-        file_reader = pd.read_csv(file_to_read_from, skiprows=1)  # object to read from a csv file
-        data_column = file_reader.iloc[:, 0]  # read from the 0th row
-
+        data_frame = pd.read_csv(file_to_read_from)
+        # set up all data storage and user input features
+        data = []
+        data_at_index = []
         input("Press enter to start measuring (this will turn on the load, so be careful)")
         self.resource_object.write("Input ON")  # turn the electronic load on. we are now live
-        voltage = 0
-        current = 0
-        data = []
-        print("Press and hold 'Ctrl+F2' for a few seconds to terminate the data storage")
-        for value in data_column:
-            magnitude = value
-            print(magnitude)
-            self.resource_object.write(load_function)  # got this value from the user_choose_mode() function
-            # read current data
-            voltage = self.resource_object.query(":FETCH:VOLTAGE?")
-            current = self.resource_object.query(":FETCH:CURRENT?")
-            # see what values to store
-            power = voltage * current
-            data.append(voltage, current, power)
-            if keyboard.is_pressed('Ctrl+F2'):
-                print("Data collection terminated. Data will be stored in " + self.data_storage_location)  # tell user where their stored data will be
-                break
-            time.sleep(time_interval)
+        print("Press and hold 'Ctrl+F2' to terminate the data storage")
 
-        # format and store the collected data
-        data_frame = pd.DataFrame(data, columns=['Voltage', 'Current', 'Power'])
-        data_frame.to_csv(self.data_storage_location)
+        while True:
+            try:
+                for index, row in data_frame.iterrows():  # measure current and voltage, and upload these to a CSV file
+                    magnitude = row['Level']
+                    self.resource_object.write(load_function + " " + str(magnitude))
+                    voltage = float(self.resource_object.query(":FETCH:VOLTAGE?"))
+                    current = float(self.resource_object.query(":FETCH:CURRENT?"))
+                    power = voltage * current
+                    data_at_index.append(index)
+                    data_at_index.append(voltage)
+                    data_at_index.append(current)
+                    data_at_index.append(power)
+                    data.append(data_at_index)
+                    data_at_index = []
+                    print(data[index])
+                    time.sleep(time_interval)
+            except KeyboardInterrupt:
+                self.save_data(data)
+                break
+            else:
+                self.save_data(data)
+                break
+        print("Data should be saved")
 
 
 
