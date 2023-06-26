@@ -3,6 +3,7 @@ import datetime
 import sys
 import signal
 import time
+import os
 
 import pyvisa   # Wrapper for VISA
 import pandas   # Read from CSV, save captured data to another CSV
@@ -20,16 +21,18 @@ def interrupt_handler(signum, frame):
     sys.exit(0)  # terminate the program
 '''
 
-def save_data():
-    print("Saving data")
-
 
 def run_load():
     resource_manager = pyvisa.ResourceManager()  # object managing all possible test equipment attached
     storage_file_name = 'stored_data_' + formatted_datetime + '.csv'  # the csv file that data will be written to on this test
-
-    electronic_load = BK_Precision_8601B(storage_file_name, resource_manager)   # create the electronic load object
+    current_path = os.path.dirname(os.path.abspath(__file__))  # get the path the file is currently in
+    file_path = os.path.join(current_path, storage_file_name)  # what is the file path of the added CSV for storage
+    print("\nData will be stored in the following location: " + file_path)
+    print("This location should be the same folder that this program is stored in\n")
+    electronic_load = BK_Precision_8601B(file_path, resource_manager)   # create the electronic load object
     electronic_load.setup()  # let the user decide what they want the load to do during this run
+
+    # this will contain all the run types
     if electronic_load.run_type == "MANUAL":
         electronic_load.run_manual()
     elif electronic_load.run_type == "FILE":
@@ -43,11 +46,9 @@ def main():
     current_datetime = datetime.datetime.now()
     # Format the date and time as a string
     global formatted_datetime
-    formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H:%M:%S")
+    formatted_datetime = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
+    run_load()   # figure out what you are doing
 
-    print("Press Ctr1+F2 (Windows) or Ctrl+C (Linux) to terminate the program ")
-    run_load()   # figure out what you
-    time.sleep(10)
 
 
 if __name__ == '__main__':
