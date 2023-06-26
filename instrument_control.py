@@ -34,6 +34,9 @@ class ElectronicTestEquipment(ABC):  # Template class for any electronic load
         pass
 
 
+
+
+
 class BK_Precision_8601B(ElectronicTestEquipment):
     # Needs a resource manager object from pyVisa
     # Needs a load output address to talk to via usb or some other output configuration
@@ -106,10 +109,10 @@ class BK_Precision_8601B(ElectronicTestEquipment):
                     voltage = float(self.resource_object.query(":FETCH:VOLTAGE?"))
                     current = float(self.resource_object.query(":FETCH:CURRENT?"))
                     power = voltage * current
-                    data_at_index.append(index)
-                    data_at_index.append(voltage)
-                    data_at_index.append(current)
-                    data_at_index.append(power)
+                    data_at_index.append(round(index, 2))
+                    data_at_index.append(round(voltage, 2))
+                    data_at_index.append(round(current, 2))
+                    data_at_index.append(round(power, 2))
                     data.append(data_at_index)
                     data_at_index = []
 
@@ -122,6 +125,43 @@ class BK_Precision_8601B(ElectronicTestEquipment):
                 self.save_data(data)
                 break
 
+        print("Data should be saved")
+
+    def run_file_mode(self):
+        print("This function will read from a CSV file with a single row of values")
+        file_to_read_from = input("Enter the file you would like to read from: ")
+        load_function = self.user_choose_mode()  # user decides if CC, CV, CW, or CR should be used
+        time_interval = self.set_interval()
+        data_frame = pd.read_csv(file_to_read_from)
+        # set up all data storage and user input features
+        data = []
+        data_at_index = []
+        input("Press enter to start measuring (this will turn on the load, so be careful)")
+        self.resource_object.write("Input ON")  # turn the electronic load on. we are now live
+        print("Press and hold 'Ctrl+F2' to terminate the data storage")
+
+        while True:
+            try:
+                for index, row in data_frame.iterrows():  # measure current and voltage, and upload these to a CSV file
+                    magnitude = row['Level']
+                    self.resource_object.write(load_function + " " + str(magnitude))
+                    voltage = float(self.resource_object.query(":FETCH:VOLTAGE?"))
+                    current = float(self.resource_object.query(":FETCH:CURRENT?"))
+                    power = voltage * current
+                    data_at_index.append(round(index, 2))
+                    data_at_index.append(round(voltage, 2))
+                    data_at_index.append(round(current, 2))
+                    data_at_index.append(round(power, 2))
+                    data.append(data_at_index)
+                    data_at_index = []
+                    print(data[index])
+                    time.sleep(time_interval)
+            except KeyboardInterrupt:
+                self.save_data(data)
+                break
+            else:
+                self.save_data(data)
+                break
         print("Data should be saved")
 
 
@@ -178,7 +218,7 @@ class BK_Precision_8601B(ElectronicTestEquipment):
                 continuing = False
                 return "VOLT"
             elif str.upper(load_mode) == "CW":
-                self.resource_object.write("POW")
+                self.resource_object.write("FUNC POW")
                 continuing = False
                 return "POW"
             elif str.upper(load_mode) == "CR":
@@ -191,45 +231,6 @@ class BK_Precision_8601B(ElectronicTestEquipment):
         return "Nothing returned, error likely"
 
 
-    def run_file_mode(self):
-        print("This function will read from a CSV file with a single row of values")
-        file_to_read_from = input("Enter the file you would like to read from: ")
-        load_function = self.user_choose_mode()  # user decides if CC, CV, CW, or CR should be used
-        time_interval = self.set_interval()
-        data_frame = pd.read_csv(file_to_read_from)
-        # set up all data storage and user input features
-        data = []
-        data_at_index = []
-        input("Press enter to start measuring (this will turn on the load, so be careful)")
-        self.resource_object.write("Input ON")  # turn the electronic load on. we are now live
-        print("Press and hold 'Ctrl+F2' to terminate the data storage")
-
-        while True:
-            try:
-                for index, row in data_frame.iterrows():  # measure current and voltage, and upload these to a CSV file
-                    magnitude = row['Level']
-                    self.resource_object.write(load_function + " " + str(magnitude))
-                    voltage = float(self.resource_object.query(":FETCH:VOLTAGE?"))
-                    current = float(self.resource_object.query(":FETCH:CURRENT?"))
-                    power = voltage * current
-                    data_at_index.append(index)
-                    data_at_index.append(voltage)
-                    data_at_index.append(current)
-                    data_at_index.append(power)
-                    data.append(data_at_index)
-                    data_at_index = []
-                    print(data[index])
-                    time.sleep(time_interval)
-            except KeyboardInterrupt:
-                self.save_data(data)
-                break
-            else:
-                self.save_data(data)
-                break
-        print("Data should be saved")
-
-
-
     def direct_input(self, input_value):  # a direct input to change the equipment's functionality in the most basic way
         pass
 
@@ -240,7 +241,6 @@ class BK_Precision_8601B(ElectronicTestEquipment):
 
     def read_values(self):  # will return the given values for equipment, whatever that may mean
         pass
-
 
 
 
