@@ -4,11 +4,8 @@
 import pyvisa
 import time
 import pandas as pd
-
-
-
 from abc import ABC, abstractmethod
-
+import datetime
 
 
 class ElectronicTestEquipment(ABC):  # Template class for any electronic load
@@ -57,10 +54,12 @@ class BK_Precision_8601B(ElectronicTestEquipment):
         print("Choose how to use the load")
         user_choice = "No choice yet"
         while user_choice == "No choice yet":
-            user_choice = str.upper(input("Enter 'manual' for manual use, or enter 'file' to control load from a CSV file: "))
+            user_choice = str.upper(input("Enter 'manual' for manual use, enter 'file' to control load from a CSV file, or enter 'battery discharge' to run at CC til 10.5V: "))
             if user_choice == "MANUAL":
                 self.run_type = user_choice
             elif user_choice == "FILE":
+                self.run_type = user_choice
+            elif user_choice == "BATTERY DISCHARGE":
                 self.run_type = user_choice
             else:
                 print("Not a choice")
@@ -84,6 +83,43 @@ class BK_Precision_8601B(ElectronicTestEquipment):
                 resource_chosen = True
             except:
                 print("Something went wrong, try again")
+
+
+    def cc_til_discharged(self):
+        print("Will discharge the battery at 200mA until the voltage reaches 10.5V")
+        voltage = float(self.resource_object.query(":FETCH:VOLTAGE?"))
+        input("Press enter to start the discharge")
+        self.resource_object.write("CURR 0.2")  # set to 200mA for the discharge
+        self.resource_object.write("INPUT ON")
+        start_time = time.time()
+        time_voltage_list = []
+
+        while voltage >= 10.5:
+            voltage = float(self.resource_object.query(":FETCH:VOLTAGE?"))
+            # every 10 seconds, print the current battery voltage, and save it to a list as well
+            printed_once = False
+            while time.time() % 10 > 9.95:
+                if not printed_once:
+                    print("Battery Voltage = " + str(voltage))
+                    temp_time = time.time() - start_time
+                    temp_list = [temp_time, voltage]
+                    time_voltage_list.append(temp_list)
+                    printed_once = True
+
+        self.resource_object.write("INPUT OFF")
+        end_time = time.time()
+        discharge_time = end_time - start_time
+        print("Discharge time: {:.2f} seconds".format(discharge_time))
+        #  save the data to a folder
+        df = pd.DataFrame(time_voltage_list, columns=['Time', 'Voltage'])
+        current_datetime = datetime.datetime.now()
+        csv_file_name = "discharge_data_" + current_datetime.strftime("%Y-%m-%d_%H-%M-%S") + ".csv"
+        file_to_save = self.data_storage_location + r"/" + csv_file_name  # data storage location is the path to the folder we are saving the data in
+        df.to_csv(file_to_save, index=False)
+        print(f"CSV file saved to: {file_to_save}")
+
+
+
 
 
     # user chooses CC, CV, CW, or CR

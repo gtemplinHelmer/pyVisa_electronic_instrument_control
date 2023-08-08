@@ -1,14 +1,7 @@
 # implementation of BK Precision 8601B Control
 import datetime
-import sys
-import signal
-import time
 import os
-
 import pyvisa   # Wrapper for VISA
-import pandas   # Read from CSV, save captured data to another CSV
-import csv  # to create CSV file to store data in
-
 from instrument_control import BK_Precision_8601B  # the load I am using
 
 
@@ -25,10 +18,8 @@ def interrupt_handler(signum, frame):
 def run_load():
     resource_manager = pyvisa.ResourceManager()  # object managing all possible test equipment attached
     storage_file_name = 'stored_data_' + formatted_datetime + '.csv'  # the csv file that data will be written to on this test
-    current_path = os.path.dirname(os.path.abspath(__file__))  # get the path the file is currently in
-    file_path = os.path.join(current_path, storage_file_name)  # what is the file path of the added CSV for storage
+    file_path = r'S:\Acadarch\TESTING\COMPLETE TEST FILES\1274\1274.007\Python Files\Discharge Data Collected'
     print("\nData will be stored in the following location: " + file_path)
-    print("This location should be the same folder that this program is stored in\n")
     electronic_load = BK_Precision_8601B(file_path, resource_manager)   # create the electronic load object
     electronic_load.setup()  # let the user decide what they want the load to do during this run
 
@@ -37,6 +28,8 @@ def run_load():
         electronic_load.run_manual()
     elif electronic_load.run_type == "FILE":
         electronic_load.run_file_mode()
+    elif electronic_load.run_type == "BATTERY DISCHARGE":
+        electronic_load.cc_til_discharged()
     else:
         print("Something went wrong")
 
